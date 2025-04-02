@@ -1,4 +1,51 @@
 #![feature(generic_const_exprs)]
+//! # GLSP (General Linear Sum Protocol)
+//! 
+//! An implementation of the general linear sum sigma protocol from Boneh-Shoup.
+//! 
+//! This library provides a zero-knowledge proof system for proving knowledge of a secret
+//! value without revealing the secret itself. It's based on the general linear sum
+//! protocol which is useful for various cryptographic applications.
+//! 
+//! ## Features
+//! 
+//! - Type-safe representations of statements, secrets, proofs, and public values
+//! - Generic implementation that works with any group that implements the `Group` trait
+//! - Constant-time operations to help prevent timing attacks
+//! - Serialization support
+//! 
+//! ## Example
+//! 
+//! ```rust
+//! # use sp::*;
+//! # use curve25519_dalek::{ristretto::RistrettoPoint};
+//! # use rand_chacha::ChaCha20Rng;
+//! # use rand_core::SeedableRng;
+//! # 
+//! // Create parameters for a statement with 2 secret values and 3 public points
+//! const M: usize = 2; // Number of secret values
+//! const N: usize = 3; // Number of public points
+//! 
+//! // Initialize a cryptographically secure random number generator
+//! let mut rng = ChaCha20Rng::seed_from_u64(42); // Use a secure random seed in production
+//! 
+//! // Generate a random secret
+//! let secret = Secret::<N, RistrettoPoint>::random(&mut rng);
+//! 
+//! // Generate a random statement
+//! let statement = Statement::<M, N, RistrettoPoint>::random(&mut rng);
+//! 
+//! // Compute the public value from the secret and statement
+//! let public = statement.compute_public(&secret);
+//! 
+//! // Sign a message with the secret to produce a proof
+//! let message = b"example message";
+//! let proof = statement.sign(&secret, message, &mut rng);
+//! 
+//! // Verify the proof using the public value
+//! let is_valid = statement.verify(&proof, message, &public);
+//! assert!(is_valid);
+//! ```
 
 use group::Group;
 use group::ff::Field;
@@ -6,19 +53,43 @@ use rand_core::{CryptoRngCore, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use serde::Serialize;
 
+/// Represents a secret key in the protocol.
+///
+/// The secret consists of an array of `N` scalar values from the given group `G`.
+/// These scalar values are kept private and are used to generate proofs.
+///
+/// Type parameters:
+/// - `N`: The number of scalar values in the secret
+/// - `G`: The elliptic curve group implementation
 pub struct Secret<const N: usize, G: Group> {
     alpha: [G::Scalar; N],
 }
 
 impl<const N: usize, G: Group + Default> Secret<N, G> 
-where 
-    G::Scalar: Default,
 {
+    /// Creates a new random secret using the provided random number generator.
+    ///
+    /// This generates `N` random scalar values for the secret.
+    ///
+    /// # Arguments
+    /// * `rng` - A cryptographically secure random number generator
+    ///
+    /// # Returns
+    /// A new `Secret` instance with randomly generated values
+    ///
+    /// # Example
+    /// ```
+    /// # use sp::*;
+    /// # use curve25519_dalek::ristretto::RistrettoPoint;
+    /// # use rand_chacha::ChaCha20Rng;
+    /// # use rand_core::SeedableRng;
+    /// #
+    /// let mut rng = ChaCha20Rng::seed_from_u64(42);
+    /// let secret = Secret::<3, RistrettoPoint>::random(&mut rng);
+    /// ```
     pub fn random(mut rng: impl CryptoRngCore) -> Self 
-    where
-        G::Scalar: Default,
     {
-        let mut alpha = vec![G::Scalar::default(); N];
+        let mut alpha = vec![G::Scalar::ZERO; N];
         for i in 0..N {
             alpha[i] = G::Scalar::random(&mut rng);
         }
@@ -28,18 +99,56 @@ where
     }
 }
 
+/// Represents the public key in the protocol.
+///
+/// The public key consists of an array of `N` group elements from the given group `G`.
+/// These values are derived from the secret and the statement, and can be publicly shared.
+///
+/// Type parameters:
+/// - `N`: The number of group elements in the public key
+/// - `G`: The elliptic curve group implementation
 pub struct Public<const N: usize, G: Group> {
     u: [G; N],
 }
 
+/// Represents a statement in the zero-knowledge proof system.
+///
+/// A statement is a 2D array of group elements that define the linear relations
+/// that the secret must satisfy. It is essentially a matrix of base points.
+///
+/// Type parameters:
+/// - `M`: The number of elements in the secret (width)
+/// - `N`: The number of linear relations (height)
+/// - `G`: The elliptic curve group implementation
 pub struct Statement<const M: usize, const N: usize, G: Group> {
     g: [[G; M]; N],
 }
 
 impl<const M: usize, const N: usize, G: Group + Default> Statement<M, N, G> 
-where
-    G::Scalar: Default,
 {
+    /// Creates a new random statement using the provided random number generator.
+    ///
+    /// This generates an M×N matrix of random group elements for the statement.
+    /// Each element is a random scalar multiple of the group generator.
+    ///
+    /// # Arguments
+    /// * `rng` - A cryptographically secure random number generator
+    ///
+    /// # Returns
+    /// A new `Statement` instance with randomly generated values
+    ///
+    /// # Example
+    /// ```
+    /// # use sp::*;
+    /// # use curve25519_dalek::ristretto::RistrettoPoint;
+    /// # use rand_chacha::ChaCha20Rng;
+    /// # use rand_core::SeedableRng;
+    /// #
+    /// const M: usize = 2;
+    /// const N: usize = 3;
+    /// let mut rng = ChaCha20Rng::seed_from_u64(42);
+    /// let statement = Statement::<M, N, RistrettoPoint>::random(&mut rng);
+    /// ```
     pub fn random(mut rng: impl CryptoRngCore) -> Self {
         let mut g = Vec::with_capacity(N);
         for _ in 0..N {
@@ -54,6 +163,31 @@ where
         }
     }
     
+    /// Computes the public key corresponding to a given secret.
+    ///
+    /// This calculation performs the linear combination of statement elements with
+    /// the secret scalars to produce the public key values.
+    ///
+    /// # Arguments
+    /// * `secret` - The secret key
+    ///
+    /// # Returns
+    /// A `Public` key instance derived from the secret and this statement
+    ///
+    /// # Example
+    /// ```
+    /// # use sp::*;
+    /// # use curve25519_dalek::ristretto::RistrettoPoint;
+    /// # use rand_chacha::ChaCha20Rng;
+    /// # use rand_core::SeedableRng;
+    /// #
+    /// const M: usize = 2;
+    /// const N: usize = 3;
+    /// let mut rng = ChaCha20Rng::seed_from_u64(42);
+    /// let secret = Secret::<N, RistrettoPoint>::random(&mut rng);
+    /// let statement = Statement::<M, N, RistrettoPoint>::random(&mut rng);
+    /// let public = statement.compute_public(&secret);
+    /// ```
     pub fn compute_public(&self, secret: &Secret<N, G>) -> Public<N, G> 
     where
         G: Default,
@@ -72,19 +206,59 @@ where
     }
 }
 
+/// Represents a zero-knowledge proof of knowledge of the secret.
+///
+/// A proof consists of a challenge scalar `c` and a vector of response scalars `alpha_z`.
+/// The proof allows verification that the prover knows the secret without revealing it.
+///
+/// Type parameters:
+/// - `N`: The number of scalars in the response vector
+/// - `G`: The elliptic curve group implementation
 pub struct Proof<const N: usize, G: Group> {
+    /// The challenge scalar
     c: G::Scalar,
+    /// The response scalars
     alpha_z: [G::Scalar; N],
 }
 
 impl<const M: usize, const N: usize, G: Group + Serialize + Default> Statement<M, N, G>
 where
-    [(); 32 * N]:,
+    [(); 32 * N]:, // This constraint ensures the array size computation is valid
 {
+    /// Signs a message using the secret key to produce a zero-knowledge proof.
+    ///
+    /// This implements the sigma protocol for producing a proof of knowledge
+    /// of the secret without revealing it. The proof is bound to the given message.
+    ///
+    /// # Arguments
+    /// * `secret` - The secret key
+    /// * `message` - The message to sign
+    /// * `rng` - A cryptographically secure random number generator
+    ///
+    /// # Returns
+    /// A `Proof` that can be verified using the public key
+    ///
+    /// # Example
+    /// ```
+    /// # use sp::*;
+    /// # use curve25519_dalek::ristretto::RistrettoPoint;
+    /// # use rand_chacha::ChaCha20Rng;
+    /// # use rand_core::SeedableRng;
+    /// #
+    /// const M: usize = 2;
+    /// const N: usize = 3;
+    /// let mut rng = ChaCha20Rng::seed_from_u64(42);
+    /// let secret = Secret::<N, RistrettoPoint>::random(&mut rng);
+    /// let statement = Statement::<M, N, RistrettoPoint>::random(&mut rng);
+    /// let public = statement.compute_public(&secret);
+    /// 
+    /// let message = b"test message";
+    /// let proof = statement.sign(&secret, message, &mut rng);
+    /// ```
     pub fn sign(&self, secret: &Secret<N, G>, message: &[u8], mut rng: impl CryptoRngCore) -> Proof<N, G> {
         let mut hasher = blake3::Hasher::new();
         hasher.update(message);
-        let mut alpha_t: [G::Scalar; N] = [G::Scalar::default(); N];
+        let mut alpha_t: [G::Scalar; N] = [G::Scalar::ZERO; N];
         for i in 0..N {
             alpha_t[i] = G::Scalar::random(&mut rng);
         }
@@ -111,7 +285,7 @@ where
         let rng = ChaCha20Rng::from_seed(*hasher.finalize().as_bytes());
         let c = G::Scalar::random(rng);
         
-        let mut alpha_z: [G::Scalar; N] = [G::Scalar::default(); N];
+        let mut alpha_z: [G::Scalar; N] = [G::Scalar::ZERO; N];
         for i in 0..N {
             alpha_z[i] = alpha_t[i] + secret.alpha[i] * c;
         }
@@ -119,6 +293,43 @@ where
         Proof { c, alpha_z }
     }
 
+    /// Verifies a proof against a message and public key.
+    ///
+    /// This verification process checks if the provided proof is valid for the given
+    /// message and public key, without requiring knowledge of the secret.
+    ///
+    /// # Arguments
+    /// * `proof` - The proof to verify
+    /// * `message` - The message that was signed
+    /// * `public` - The public key corresponding to the secret
+    ///
+    /// # Returns
+    /// `true` if the proof is valid, `false` otherwise
+    ///
+    /// # Example
+    /// ```
+    /// # use sp::*;
+    /// # use curve25519_dalek::ristretto::RistrettoPoint;
+    /// # use rand_chacha::ChaCha20Rng;
+    /// # use rand_core::SeedableRng;
+    /// #
+    /// const M: usize = 2;
+    /// const N: usize = 3;
+    /// let mut rng = ChaCha20Rng::seed_from_u64(42);
+    /// let secret = Secret::<N, RistrettoPoint>::random(&mut rng);
+    /// let statement = Statement::<M, N, RistrettoPoint>::random(&mut rng);
+    /// let public = statement.compute_public(&secret);
+    /// 
+    /// let message = b"test message";
+    /// let proof = statement.sign(&secret, message, &mut rng);
+    /// 
+    /// // Verify the proof
+    /// assert!(statement.verify(&proof, message, &public));
+    /// 
+    /// // Verification should fail for a different message
+    /// let different_message = b"different message";
+    /// assert!(!statement.verify(&proof, different_message, &public));
+    /// ```
     pub fn verify(&self, proof: &Proof<N, G>, message: &[u8], public: &Public<N, G>) -> bool {
         let mut hasher = blake3::Hasher::new();
         hasher.update(message);
