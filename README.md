@@ -1,10 +1,13 @@
 # GLSP (General Linear Sum Protocol)
 
-An implementation of the general linear sum sigma protocol from Boneh-Shoup.
+An implementation of the general linear sum sigma protocol.
 
 ## Overview
 
-GLSP is a zero-knowledge proof system for proving knowledge of a secret value without revealing the secret itself. This Rust library provides a type-safe implementation based on the general linear sum protocol, which is useful for various cryptographic applications.
+GLSP is a zero-knowledge proof library for proving knowledge of a secret value
+without revealing the secret itself. This Rust library provides a type-safe
+implementation based on the general linear sum protocol, which is useful for
+various cryptographic applications.
 
 ## Features
 
@@ -48,15 +51,21 @@ assert!(is_valid);
 
 ## Key Components
 
-- **Secret**: Represents the private key in the protocol, consisting of an array of scalar values.
-- **Statement**: Defines the linear relations that the secret must satisfy, represented as a matrix of group elements.
+- **Secret**: Represents the private key in the protocol, consisting of an
+  array of scalar values.
+- **Statement**: Defines the linear relations that the secret must satisfy,
+  represented as a matrix of group elements.
 - **Public**: Represents the public key derived from the secret and statement.
-- **Proof**: Contains a challenge scalar and response scalars that allow verification without revealing the secret.
+- **Proof**: Contains a challenge scalar and response scalars that allow
+  verification without revealing the secret.
 
 ## Benchmarks
 
-The repository includes benchmarks to evaluate the performance of the protocol with various parameter sizes.
+The repository includes benchmarks to evaluate the performance of the protocol
+with various parameter sizes.
 
 ## References
 
-This implementation is based on the General Linear Sum Protocol described in section 19.5.3 of "A Graduate Course in Applied Cryptography" by Dan Boneh and Victor Shoup.
+This implementation is based on the General Linear Sum Protocol described in
+section 19.5.3 of "A Graduate Course in Applied Cryptography" by Dan Boneh and
+Victor Shoup.
