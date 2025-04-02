@@ -128,6 +128,13 @@ fn bench_very_large_sign(c: &mut Criterion) { bench_sign::<10, 20>(c); }
 fn bench_very_large_verify(c: &mut Criterion) { bench_verify::<10, 20>(c); }
 fn bench_very_large_e2e(c: &mut Criterion) { bench_e2e::<10, 20>(c); }
 
+// Huge statement benchmarks (M=100, N=100)
+fn bench_huge_statement_creation(c: &mut Criterion) { bench_statement_creation::<50, 50>(c); }
+fn bench_huge_public_computation(c: &mut Criterion) { bench_public_computation::<50, 50>(c); }
+fn bench_huge_sign(c: &mut Criterion) { bench_sign::<50, 50>(c); }
+fn bench_huge_verify(c: &mut Criterion) { bench_verify::<50, 50>(c); }
+fn bench_huge_e2e(c: &mut Criterion) { bench_e2e::<50, 50>(c); }
+
 criterion_group!(
     benches,
     // Small statement benchmarks
@@ -157,6 +164,13 @@ criterion_group!(
     bench_very_large_sign,
     bench_very_large_verify,
     bench_very_large_e2e,
+    
+    // Huge statement benchmarks
+    bench_huge_statement_creation,
+    bench_huge_public_computation,
+    bench_huge_sign,
+    bench_huge_verify,
+    bench_huge_e2e,
 );
 
 criterion_main!(benches);
