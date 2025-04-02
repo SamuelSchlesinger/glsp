@@ -15,3 +15,8 @@ subtle = "2.4"
 
 [dev-dependencies]
 curve25519-dalek = { version = "4.1.1", features = ["serde", "group", "rand_core"] }
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "statement_benchmarks"
+harness = false
