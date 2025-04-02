@@ -1,4 +1,3 @@
-#![feature(generic_const_exprs)]
 //! # GLSP (General Linear Sum Protocol)
 //! 
 //! An implementation of the general linear sum sigma protocol from Boneh-Shoup.
@@ -222,8 +221,6 @@ pub struct Proof<const N: usize, G: Group> {
 }
 
 impl<const M: usize, const N: usize, G: Group + Serialize + Default> Statement<M, N, G>
-where
-    [(); 32 * N]:, // This constraint ensures the array size computation is valid
 {
     /// Signs a message using the secret key to produce a zero-knowledge proof.
     ///
@@ -272,16 +269,15 @@ where
             u_t[i] = acc;
         }
         
-        let mut u_t_bytes: [u8; 32 * N] = [0u8; 32 * N];
+        let mut u_t_i_bytes = [0u8; 32];
         for i in 0..N {
             bincode::serde::encode_into_slice(
                 u_t[i],
-                &mut u_t_bytes[i * 32 .. (i + 1) * 32],
+                &mut u_t_i_bytes,
                 bincode::config::standard()
             ).unwrap();
+            hasher.update(&u_t_i_bytes);
         }
-        
-        hasher.update(&u_t_bytes);
         let rng = ChaCha20Rng::from_seed(*hasher.finalize().as_bytes());
         let c = G::Scalar::random(rng);
         
@@ -345,15 +341,15 @@ where
             u_z_minus_cu[i] = b - (public.u[i] * proof.c);
         }
         
-        let mut u_t_bytes: [u8; 32 * N] = [0u8; 32 * N];
+        let mut u_t_i_bytes: [u8; 32] = [0u8; 32];
         for i in 0..N {
             bincode::serde::encode_into_slice(
                 u_z_minus_cu[i], 
-                &mut u_t_bytes[i * 32 .. (i + 1) * 32],
+                &mut u_t_i_bytes,
                 bincode::config::standard()
             ).unwrap();
+            hasher.update(&u_t_i_bytes);
         }
-        hasher.update(&u_t_bytes);
         let rng = ChaCha20Rng::from_seed(*hasher.finalize().as_bytes());
         let c = G::Scalar::random(rng);
         
