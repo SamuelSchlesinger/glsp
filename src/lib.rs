@@ -16,7 +16,7 @@
 //! ## Example
 //! 
 //! ```rust
-//! # use sp::*;
+//! # use glsp::*;
 //! # use curve25519_dalek::{ristretto::RistrettoPoint};
 //! # use rand_chacha::ChaCha20Rng;
 //! # use rand_core::SeedableRng;
@@ -39,7 +39,7 @@
 //! 
 //! // Sign a message with the secret to produce a proof
 //! let message = b"example message";
-//! let proof = statement.sign(&secret, message, &mut rng);
+//! let proof = statement.sign(&secret, &public, message, &mut rng);
 //! 
 //! // Verify the proof using the public value
 //! let is_valid = statement.verify(&proof, message, &public);
@@ -78,7 +78,7 @@ impl<const N: usize, G: Group + Default> Secret<N, G>
     ///
     /// # Example
     /// ```
-    /// # use sp::*;
+    /// # use glsp::*;
     /// # use curve25519_dalek::ristretto::RistrettoPoint;
     /// # use rand_chacha::ChaCha20Rng;
     /// # use rand_core::SeedableRng;
@@ -138,7 +138,7 @@ impl<const M: usize, const N: usize, G: Group + Default> Statement<M, N, G>
     ///
     /// # Example
     /// ```
-    /// # use sp::*;
+    /// # use glsp::*;
     /// # use curve25519_dalek::ristretto::RistrettoPoint;
     /// # use rand_chacha::ChaCha20Rng;
     /// # use rand_core::SeedableRng;
@@ -175,7 +175,7 @@ impl<const M: usize, const N: usize, G: Group + Default> Statement<M, N, G>
     ///
     /// # Example
     /// ```
-    /// # use sp::*;
+    /// # use glsp::*;
     /// # use curve25519_dalek::ristretto::RistrettoPoint;
     /// # use rand_chacha::ChaCha20Rng;
     /// # use rand_core::SeedableRng;
@@ -237,7 +237,7 @@ impl<const M: usize, const N: usize, G: Group + Serialize + Default> Statement<M
     ///
     /// # Example
     /// ```
-    /// # use sp::*;
+    /// # use glsp::*;
     /// # use curve25519_dalek::ristretto::RistrettoPoint;
     /// # use rand_chacha::ChaCha20Rng;
     /// # use rand_core::SeedableRng;
@@ -250,11 +250,14 @@ impl<const M: usize, const N: usize, G: Group + Serialize + Default> Statement<M
     /// let public = statement.compute_public(&secret);
     /// 
     /// let message = b"test message";
-    /// let proof = statement.sign(&secret, message, &mut rng);
+    /// let proof = statement.sign(&secret, &public, message, &mut rng);
     /// ```
-    pub fn sign(&self, secret: &Secret<N, G>, message: &[u8], mut rng: impl CryptoRngCore) -> Proof<N, G> {
+    pub fn sign(&self, secret: &Secret<N, G>, public: &Public<N, G>, message: &[u8], mut rng: impl CryptoRngCore) -> Proof<N, G> {
         let mut hasher = blake3::Hasher::new();
         hasher.update(message);
+        for i in 0..N {
+            hasher.update(&bincode::serde::encode_to_vec(&public.u[i], bincode::config::standard()).unwrap());
+        }
         let mut alpha_t: [G::Scalar; N] = [G::Scalar::ZERO; N];
         for i in 0..N {
             alpha_t[i] = G::Scalar::random(&mut rng);
@@ -304,7 +307,7 @@ impl<const M: usize, const N: usize, G: Group + Serialize + Default> Statement<M
     ///
     /// # Example
     /// ```
-    /// # use sp::*;
+    /// # use glsp::*;
     /// # use curve25519_dalek::ristretto::RistrettoPoint;
     /// # use rand_chacha::ChaCha20Rng;
     /// # use rand_core::SeedableRng;
@@ -317,7 +320,7 @@ impl<const M: usize, const N: usize, G: Group + Serialize + Default> Statement<M
     /// let public = statement.compute_public(&secret);
     /// 
     /// let message = b"test message";
-    /// let proof = statement.sign(&secret, message, &mut rng);
+    /// let proof = statement.sign(&secret, &public, message, &mut rng);
     /// 
     /// // Verify the proof
     /// assert!(statement.verify(&proof, message, &public));
@@ -329,6 +332,9 @@ impl<const M: usize, const N: usize, G: Group + Serialize + Default> Statement<M
     pub fn verify(&self, proof: &Proof<N, G>, message: &[u8], public: &Public<N, G>) -> bool {
         let mut hasher = blake3::Hasher::new();
         hasher.update(message);
+        for i in 0..N {
+            hasher.update(&bincode::serde::encode_to_vec(&public.u[i], bincode::config::standard()).unwrap());
+        }
         let mut u_z_minus_cu: [G; N] = [G::default(); N];
         for i in 0..N {
             let b = {
@@ -379,7 +385,7 @@ mod tests {
         let public = statement.compute_public(&secret);
         
         let message = b"test message";
-        let proof = statement.sign(&secret, message, &mut rng);
+        let proof = statement.sign(&secret, &public, message, &mut rng);
         
         assert!(statement.verify(&proof, message, &public));
         
@@ -400,7 +406,7 @@ mod tests {
         let public = statement.compute_public(&secret);
         
         let message = b"test message for medium-sized statement";
-        let proof = statement.sign(&secret, message, &mut rng);
+        let proof = statement.sign(&secret, &public, message, &mut rng);
         
         assert!(statement.verify(&proof, message, &public));
     }
@@ -417,7 +423,7 @@ mod tests {
         let public = statement.compute_public(&secret);
         
         let message = b"test message for large statement with more parameters";
-        let proof = statement.sign(&secret, message, &mut rng);
+        let proof = statement.sign(&secret, &public, message, &mut rng);
         
         assert!(statement.verify(&proof, message, &public));
     }
@@ -434,7 +440,7 @@ mod tests {
         let public = statement.compute_public(&secret);
         
         let message = b"test message";
-        let mut proof = statement.sign(&secret, message, &mut rng);
+        let mut proof = statement.sign(&secret, &public, message, &mut rng);
         
         // Tamper with the challenge value
         proof.c = Scalar::random(&mut rng);
@@ -455,7 +461,7 @@ mod tests {
         let public = statement.compute_public(&secret);
         
         let message = b"test message";
-        let mut proof = statement.sign(&secret, message, &mut rng);
+        let mut proof = statement.sign(&secret, &public, message, &mut rng);
         
         // Tamper with one of the alpha_z values
         proof.alpha_z[0] = Scalar::random(&mut rng);
@@ -476,7 +482,7 @@ mod tests {
         let public = statement.compute_public(&secret);
         
         let message = b"test message";
-        let mut proof = statement.sign(&secret, message, &mut rng);
+        let mut proof = statement.sign(&secret, &public, message, &mut rng);
         
         // Tamper with all alpha_z values
         for i in 0..N {
@@ -499,7 +505,7 @@ mod tests {
         let mut public = statement.compute_public(&secret);
         
         let message = b"test message";
-        let proof = statement.sign(&secret, message, &mut rng);
+        let proof = statement.sign(&secret, &public, message, &mut rng);
         
         // Tamper with the public key
         public.u[0] = RistrettoPoint::generator() * Scalar::random(&mut rng);
