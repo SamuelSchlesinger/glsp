@@ -19,7 +19,7 @@ various cryptographic applications.
 ## Usage Example
 
 ```rust
-use sp::*;
+use glsp::*;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
@@ -42,7 +42,7 @@ let public = statement.compute_public(&secret);
 
 // Sign a message with the secret to produce a proof
 let message = b"example message";
-let proof = statement.sign(&secret, message, &mut rng);
+let proof = statement.sign(&secret, &public, message, &mut rng);
 
 // Verify the proof using the public value
 let is_valid = statement.verify(&proof, message, &public);

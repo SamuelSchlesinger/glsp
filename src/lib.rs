@@ -367,7 +367,6 @@ impl<const M: usize, const N: usize, G: Group + Serialize + Default> Statement<M
 mod tests {
     use super::*;
     use curve25519_dalek::{
-        constants::RISTRETTO_BASEPOINT_POINT,
         ristretto::RistrettoPoint,
         Scalar,
     };
