@@ -21,9 +21,9 @@
 //! # use rand_chacha::ChaCha20Rng;
 //! # use rand_core::SeedableRng;
 //! # 
-//! // Create parameters for a statement with 2 secret values and 3 public points
-//! const M: usize = 2; // Number of secret values
-//! const N: usize = 3; // Number of public points
+//! // Create parameters for a statement with 3 secret values and 2 public points
+//! const M: usize = 2; // Number of public points
+//! const N: usize = 3; // Number of secret values
 //! 
 //! // Initialize a cryptographically secure random number generator
 //! let mut rng = ChaCha20Rng::seed_from_u64(42); // Use a secure random seed in production
@@ -106,8 +106,8 @@ impl<const N: usize, G: Group + Default> Secret<N, G>
 /// Type parameters:
 /// - `N`: The number of group elements in the public key
 /// - `G`: The elliptic curve group implementation
-pub struct Public<const N: usize, G: Group> {
-    u: [G; N],
+pub struct Public<const M: usize, G: Group> {
+    u: [G; M],
 }
 
 /// Represents a statement in the zero-knowledge proof system.
@@ -120,7 +120,7 @@ pub struct Public<const N: usize, G: Group> {
 /// - `N`: The number of linear relations (height)
 /// - `G`: The elliptic curve group implementation
 pub struct Statement<const M: usize, const N: usize, G: Group> {
-    g: [[G; M]; N],
+    g: [[G; N]; M],
 }
 
 impl<const M: usize, const N: usize, G: Group + Default> Statement<M, N, G> 
@@ -143,16 +143,16 @@ impl<const M: usize, const N: usize, G: Group + Default> Statement<M, N, G>
     /// # use rand_chacha::ChaCha20Rng;
     /// # use rand_core::SeedableRng;
     /// #
-    /// const M: usize = 2;
-    /// const N: usize = 3;
+    /// const M: usize = 3;
+    /// const N: usize = 2;
     /// let mut rng = ChaCha20Rng::seed_from_u64(42);
     /// let statement = Statement::<M, N, RistrettoPoint>::random(&mut rng);
     /// ```
     pub fn random(mut rng: impl CryptoRngCore) -> Self {
         let mut g = Vec::with_capacity(N);
-        for _ in 0..N {
-            let mut row = vec![G::default(); M];
-            for j in 0..M {
+        for _ in 0..M {
+            let mut row = vec![G::default(); N];
+            for j in 0..N {
                 row[j] = G::generator() * G::Scalar::random(&mut rng);
             }
             g.push(row.try_into().unwrap());
@@ -180,21 +180,21 @@ impl<const M: usize, const N: usize, G: Group + Default> Statement<M, N, G>
     /// # use rand_chacha::ChaCha20Rng;
     /// # use rand_core::SeedableRng;
     /// #
-    /// const M: usize = 2;
-    /// const N: usize = 3;
+    /// const M: usize = 3;
+    /// const N: usize = 2;
     /// let mut rng = ChaCha20Rng::seed_from_u64(42);
     /// let secret = Secret::<N, RistrettoPoint>::random(&mut rng);
     /// let statement = Statement::<M, N, RistrettoPoint>::random(&mut rng);
     /// let public = statement.compute_public(&secret);
     /// ```
-    pub fn compute_public(&self, secret: &Secret<N, G>) -> Public<N, G> 
+    pub fn compute_public(&self, secret: &Secret<N, G>) -> Public<M, G> 
     where
         G: Default,
     {
-        let mut u = vec![G::default(); N];
-        for i in 0..N {
+        let mut u = vec![G::default(); M];
+        for i in 0..M {
             let mut acc = G::identity();
-            for j in 0..M {
+            for j in 0..N {
                 acc += self.g[i][j] * secret.alpha[j];
             }
             u[i] = acc;
@@ -242,8 +242,8 @@ impl<const M: usize, const N: usize, G: Group + Serialize + Default> Statement<M
     /// # use rand_chacha::ChaCha20Rng;
     /// # use rand_core::SeedableRng;
     /// #
-    /// const M: usize = 2;
-    /// const N: usize = 3;
+    /// const M: usize = 3;
+    /// const N: usize = 2;
     /// let mut rng = ChaCha20Rng::seed_from_u64(42);
     /// let secret = Secret::<N, RistrettoPoint>::random(&mut rng);
     /// let statement = Statement::<M, N, RistrettoPoint>::random(&mut rng);
@@ -252,10 +252,10 @@ impl<const M: usize, const N: usize, G: Group + Serialize + Default> Statement<M
     /// let message = b"test message";
     /// let proof = statement.sign(&secret, &public, message, &mut rng);
     /// ```
-    pub fn sign(&self, secret: &Secret<N, G>, public: &Public<N, G>, message: &[u8], mut rng: impl CryptoRngCore) -> Proof<N, G> {
+    pub fn sign(&self, secret: &Secret<N, G>, public: &Public<M, G>, message: &[u8], mut rng: impl CryptoRngCore) -> Proof<N, G> {
         let mut hasher = blake3::Hasher::new();
         hasher.update(message);
-        for i in 0..N {
+        for i in 0..M {
             hasher.update(&bincode::serde::encode_to_vec(&public.u[i], bincode::config::standard()).unwrap());
         }
         let mut alpha_t: [G::Scalar; N] = [G::Scalar::ZERO; N];
@@ -263,17 +263,17 @@ impl<const M: usize, const N: usize, G: Group + Serialize + Default> Statement<M
             alpha_t[i] = G::Scalar::random(&mut rng);
         }
         
-        let mut u_t: [G; N] = [G::default(); N];
-        for i in 0..N {
+        let mut u_t: [G; M] = [G::default(); M];
+        for i in 0..M {
             let mut acc = G::identity();
-            for j in 0..M {
+            for j in 0..N {
                 acc += self.g[i][j] * alpha_t[j];
             }
             u_t[i] = acc;
         }
         
         let mut u_t_i_bytes = [0u8; 32];
-        for i in 0..N {
+        for i in 0..M {
             bincode::serde::encode_into_slice(
                 u_t[i],
                 &mut u_t_i_bytes,
@@ -329,17 +329,17 @@ impl<const M: usize, const N: usize, G: Group + Serialize + Default> Statement<M
     /// let different_message = b"different message";
     /// assert!(!statement.verify(&proof, different_message, &public));
     /// ```
-    pub fn verify(&self, proof: &Proof<N, G>, message: &[u8], public: &Public<N, G>) -> bool {
+    pub fn verify(&self, proof: &Proof<N, G>, message: &[u8], public: &Public<M, G>) -> bool {
         let mut hasher = blake3::Hasher::new();
         hasher.update(message);
-        for i in 0..N {
+        for i in 0..M {
             hasher.update(&bincode::serde::encode_to_vec(&public.u[i], bincode::config::standard()).unwrap());
         }
-        let mut u_z_minus_cu: [G; N] = [G::default(); N];
-        for i in 0..N {
+        let mut u_z_minus_cu: [G; M] = [G::default(); M];
+        for i in 0..M {
             let b = {
                 let mut acc = G::identity();
-                for j in 0..M {
+                for j in 0..N {
                     acc += self.g[i][j] * proof.alpha_z[j];
                 }
                 acc
@@ -348,7 +348,7 @@ impl<const M: usize, const N: usize, G: Group + Serialize + Default> Statement<M
         }
         
         let mut u_t_i_bytes: [u8; 32] = [0u8; 32];
-        for i in 0..N {
+        for i in 0..M {
             bincode::serde::encode_into_slice(
                 u_z_minus_cu[i], 
                 &mut u_t_i_bytes,
