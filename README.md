@@ -24,9 +24,9 @@ use curve25519_dalek::ristretto::RistrettoPoint;
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 
-// Create parameters for a statement with 2 secret values and 3 public points
-const M: usize = 2; // Number of secret values
-const N: usize = 3; // Number of public points
+// Create parameters for a statement with 3 secret values and 2 public points
+const M: usize = 2; // Number of public points
+const N: usize = 3; // Number of secret values
 
 // Initialize a cryptographically secure random number generator
 let mut rng = ChaCha20Rng::seed_from_u64(42); // Use a secure random seed in production
@@ -52,11 +52,12 @@ assert!(is_valid);
 ## Key Components
 
 - **Secret**: Represents the private key in the protocol, consisting of an
-  array of scalar values.
+  array of N scalar values.
 - **Statement**: Defines the linear relations that the secret must satisfy,
-  represented as a matrix of group elements.
-- **Public**: Represents the public key derived from the secret and statement.
-- **Proof**: Contains a challenge scalar and response scalars that allow
+  represented as an M×N matrix of group elements.
+- **Public**: Represents the public key derived from the secret and statement,
+  consisting of M group elements.
+- **Proof**: Contains a challenge scalar and N response scalars that allow
   verification without revealing the secret.
 
 ## Benchmarks

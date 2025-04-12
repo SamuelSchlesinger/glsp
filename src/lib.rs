@@ -100,11 +100,11 @@ impl<const N: usize, G: Group + Default> Secret<N, G>
 
 /// Represents the public key in the protocol.
 ///
-/// The public key consists of an array of `N` group elements from the given group `G`.
+/// The public key consists of an array of `M` group elements from the given group `G`.
 /// These values are derived from the secret and the statement, and can be publicly shared.
 ///
 /// Type parameters:
-/// - `N`: The number of group elements in the public key
+/// - `M`: The number of group elements in the public key
 /// - `G`: The elliptic curve group implementation
 pub struct Public<const M: usize, G: Group> {
     u: [G; M],
@@ -116,8 +116,8 @@ pub struct Public<const M: usize, G: Group> {
 /// that the secret must satisfy. It is essentially a matrix of base points.
 ///
 /// Type parameters:
-/// - `M`: The number of elements in the secret (width)
-/// - `N`: The number of linear relations (height)
+/// - `M`: The number of public points (rows)
+/// - `N`: The number of secret values (columns)
 /// - `G`: The elliptic curve group implementation
 pub struct Statement<const M: usize, const N: usize, G: Group> {
     g: [[G; N]; M],
