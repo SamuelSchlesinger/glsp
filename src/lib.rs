@@ -120,7 +120,7 @@ pub struct Public<const M: usize, G: Group> {
 /// - `N`: The number of secret values (columns)
 /// - `G`: The elliptic curve group implementation
 pub struct Statement<const M: usize, const N: usize, G: Group> {
-    g: [[G; N]; M],
+    pub g: [[G; N]; M],
 }
 
 impl<const M: usize, const N: usize, G: Group + Default> Statement<M, N, G> 
